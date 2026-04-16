@@ -66,3 +66,50 @@ export async function submitRequest(formData: FormData) {
 
   return { success: true }
 }
+
+export async function updateRequestStatus(
+  requestId: string,
+  newStatus: 'new' | 'contacted' | 'done'
+) {
+  const supabase = await createClient()
+  if (!supabase) return { error: 'Service not configured.' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  // Verify admin
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL
+  let isAdmin = user.email === superAdminEmail
+
+  if (!isAdmin) {
+    const { createServerClient } = await import('@supabase/ssr')
+    const { cookies } = await import('next/headers')
+    const cookieStore = await cookies()
+    const serviceClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    )
+    const { data } = await serviceClient.from('admins').select('id').eq('email', user.email).single()
+    isAdmin = !!data
+  }
+
+  if (!isAdmin) return { error: 'Not authorized.' }
+
+  const { createServerClient } = await import('@supabase/ssr')
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const serviceClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+  )
+
+  const { error } = await serviceClient
+    .from('requests')
+    .update({ status: newStatus })
+    .eq('id', requestId)
+
+  if (error) return { error: 'Failed to update status.' }
+  return { success: true }
+}
