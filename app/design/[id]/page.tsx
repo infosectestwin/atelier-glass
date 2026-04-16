@@ -14,11 +14,9 @@ export default async function DesignDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: design } = await supabase
-    .from('designs')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const { data: design } = supabase
+    ? await supabase.from('designs').select('*').eq('id', id).single()
+    : { data: null }
 
   if (!design) notFound()
 

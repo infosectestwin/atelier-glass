@@ -6,12 +6,14 @@ export default async function HomePage() {
   const supabase = await createClient()
 
   // Fetch first slot from each category (featured designs)
-  const { data: designs } = await supabase
-    .from('designs')
-    .select('id, name, image_url, category_slug')
-    .in('category_slug', CATEGORIES.map(c => c.slug))
-    .eq('slot_number', 1)
-    .order('category_slug')
+  const { data: designs } = supabase
+    ? await supabase
+        .from('designs')
+        .select('id, name, image_url, category_slug')
+        .in('category_slug', CATEGORIES.map(c => c.slug))
+        .eq('slot_number', 1)
+        .order('category_slug')
+    : { data: null }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

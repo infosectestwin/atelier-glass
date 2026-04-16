@@ -14,12 +14,14 @@ export default async function CategoryPage({ params }: PageProps) {
   if (!category) notFound()
 
   const supabase = await createClient()
-  const { data: designs } = await supabase
-    .from('designs')
-    .select('id, name, image_url, category_slug, slot_number')
-    .eq('category_slug', slug)
-    .order('slot_number')
-    .limit(4)
+  const { data: designs } = supabase
+    ? await supabase
+        .from('designs')
+        .select('id, name, image_url, category_slug, slot_number')
+        .eq('category_slug', slug)
+        .order('slot_number')
+        .limit(4)
+    : { data: null }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
