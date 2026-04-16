@@ -1,7 +1,44 @@
 import Link from 'next/link'
 import { CATEGORIES } from '@/lib/categories'
+import { createClient } from '@/lib/supabase/server'
+import SignOutButton from './SignOutButton'
 
-export default function Navbar() {
+async function getAuthState() {
+  const supabase = await createClient()
+  if (!supabase) return { user: null, isAdmin: false }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { user: null, isAdmin: false }
+
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL
+  if (user.email === superAdminEmail) return { user, isAdmin: true }
+
+  // Check admins table using service role
+  const { createServerClient: createSvc } = await import('@supabase/ssr')
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const serviceClient = createSvc(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll() {},
+      },
+    }
+  )
+  const { data: adminRow } = await serviceClient
+    .from('admins')
+    .select('id')
+    .eq('email', user.email ?? '')
+    .single()
+
+  return { user, isAdmin: !!adminRow }
+}
+
+export default async function Navbar() {
+  const { user, isAdmin } = await getAuthState()
+
   return (
     <nav className="sticky top-0 z-50 backdrop-blur-md bg-black/30 border-b border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -24,14 +61,26 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Auth placeholder */}
-          <div className="flex items-center">
-            <Link
-              href="/auth/signin"
-              className="text-white/70 hover:text-white text-sm font-medium transition-colors duration-200"
-            >
-              Sign In
-            </Link>
+          {/* Auth */}
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Link
+                href="/admin/requests"
+                className="text-white/70 hover:text-white text-sm font-medium transition-colors duration-200"
+              >
+                Admin
+              </Link>
+            )}
+            {user ? (
+              <SignOutButton />
+            ) : (
+              <Link
+                href="/auth/signin"
+                className="text-white/70 hover:text-white text-sm font-medium transition-colors duration-200"
+              >
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
 
