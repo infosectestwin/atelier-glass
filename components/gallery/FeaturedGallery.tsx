@@ -19,8 +19,8 @@ export default function FeaturedGallery({ designs }: FeaturedGalleryProps) {
         Featured Designs
       </h2>
       <DesignGrid>
-        {designs.map((design) => (
-          <DesignCard key={design.id} design={design} />
+        {designs.map((design, i) => (
+          <DesignCard key={design.id} design={design} priority={i === 0} />
         ))}
       </DesignGrid>
     </section>

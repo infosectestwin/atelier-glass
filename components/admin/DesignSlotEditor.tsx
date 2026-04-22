@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { updateDesignSlot } from '@/lib/actions/designs'
+import { convertToWebP } from '@/lib/imageUtils'
 import Button from '@/components/ui/Button'
 import GlassCard from '@/components/ui/GlassCard'
 
@@ -25,29 +26,36 @@ export default function DesignSlotEditor({ design }: DesignSlotEditorProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [pending, setPending] = useState(false)
+  const [converting, setConverting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const convertedFileRef = useRef<File | null>(null)
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Client-side validation
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-    if (!allowedTypes.includes(file.type)) {
-      setError('Invalid file type. Only JPEG, PNG, and WebP are allowed.')
-      e.target.value = ''
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('File too large. Maximum size is 5MB.')
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.')
       e.target.value = ''
       return
     }
 
     setError(null)
-    const reader = new FileReader()
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
+    setConverting(true)
+    convertedFileRef.current = null
+
+    try {
+      const webp = await convertToWebP(file)
+      convertedFileRef.current = webp
+      const reader = new FileReader()
+      reader.onload = (ev) => setImagePreview(ev.target?.result as string)
+      reader.readAsDataURL(webp)
+    } catch {
+      setError('Could not process image. Try a different file.')
+      e.target.value = ''
+    } finally {
+      setConverting(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -57,9 +65,24 @@ export default function DesignSlotEditor({ design }: DesignSlotEditorProps) {
     setPending(true)
 
     const formData = new FormData(e.currentTarget)
-    const result = await updateDesignSlot(formData)
-    setPending(false)
+    // Swap in the already-converted WebP so the server always receives image/webp
+    if (convertedFileRef.current) {
+      formData.set('image', convertedFileRef.current)
+    }
 
+    // Guard against Vercel's 10s serverless timeout leaving the button spinning
+    let timedOut = false
+    const timeoutId = setTimeout(() => {
+      timedOut = true
+      setPending(false)
+      setError('Upload timed out. Try compressing the image or converting it to WebP.')
+    }, 25000)
+
+    const result = await updateDesignSlot(formData)
+    clearTimeout(timeoutId)
+    if (timedOut) return
+
+    setPending(false)
     if (result.error) {
       setError(result.error)
     } else {
@@ -102,7 +125,7 @@ export default function DesignSlotEditor({ design }: DesignSlotEditorProps) {
           ref={fileInputRef}
           type="file"
           name="image"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*"
           onChange={handleFileChange}
           className="hidden"
         />
@@ -139,8 +162,8 @@ export default function DesignSlotEditor({ design }: DesignSlotEditorProps) {
         {error && <p className="text-red-400 text-xs">{error}</p>}
         {success && <p className="text-green-400 text-xs">Saved!</p>}
 
-        <Button type="submit" variant="primary" className="w-full justify-center text-sm py-2" disabled={pending}>
-          {pending ? 'Saving...' : 'Save'}
+        <Button type="submit" variant="primary" className="w-full justify-center text-sm py-2" disabled={pending || converting}>
+          {converting ? 'Converting…' : pending ? 'Saving...' : 'Save'}
         </Button>
       </form>
     </GlassCard>

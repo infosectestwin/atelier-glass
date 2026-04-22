@@ -10,9 +10,10 @@ interface DesignCardProps {
     image_url: string | null
     category_slug: string
   }
+  priority?: boolean
 }
 
-export default function DesignCard({ design }: DesignCardProps) {
+export default function DesignCard({ design, priority = false }: DesignCardProps) {
   return (
     <GlassCard className="overflow-hidden flex flex-col">
       {/* Image area — links to design detail */}
@@ -23,6 +24,7 @@ export default function DesignCard({ design }: DesignCardProps) {
               src={design.image_url}
               alt={design.name}
               fill
+              priority={priority}
               className="object-cover"
               sizes="(max-width: 640px) 100vw, 50vw"
             />
